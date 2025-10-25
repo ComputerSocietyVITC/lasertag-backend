@@ -59,3 +59,18 @@ export async function toggleTeam(teamId: number, isPublic?: boolean): Promise<Te
     );
     return rows[0];
 }
+
+export async function getOldestMember(teamId: number): Promise<number | null> {
+    const { rows } = await dbPool.query(
+        `SELECT
+            user_id
+        FROM
+            team_members
+        WHERE
+            team_id=$1
+        ORDER BY
+            joined_at ASC
+        LIMIT 1;`, [teamId]
+    )
+    return rows?.[0]?.[0] ?? null;
+}
