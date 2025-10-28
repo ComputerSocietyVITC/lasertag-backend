@@ -74,6 +74,15 @@ export async function removeUserFromTeam(userId: number) {
     )
 }
 
+
+export async function getUserByEmail(email: string): Promise<User | null> {
+    const { rows } = await dbPool.query(
+        `SELECT * FROM users WHERE email = $1`,
+        [email]
+    );
+    return rows[0] || null;
+}
+
 export async function updateUserTeam(
     userId: number,
     isLeader: boolean | null | undefined,

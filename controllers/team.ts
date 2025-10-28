@@ -7,8 +7,7 @@ import type { MakePublicResponse } from "../types/routes";
 
 export const makeTeam = async (req: AuthorizedRequest, res: Response, next: NextFunction) => {
     const user = await getUser(req.userId!);
-
-    if (user?.team_id) {
+    if (user?.team) {
         throw new AppError('User already belongs to a team', 409);
     }
 
@@ -45,7 +44,7 @@ export const joinTeam = async (req: AuthorizedRequest, res: Response, next: Next
         throw new AppError('Authenticated user not found', 404);
     }
 
-    if (user.team_id) {
+    if (user.team) {
         throw new AppError('User already belongs to a team', 409);
     }
 
@@ -79,26 +78,36 @@ export const joinTeam = async (req: AuthorizedRequest, res: Response, next: Next
 };
 
 export const makePublic = async (req: AuthorizedRequest, res: TypedResponse<MakePublicResponse>, next: NextFunction) => {
-    if (typeof req.userId !== 'string') { return res.status(400).json({ message: "Invalid parameters" }) }
-    const user = await getUser(req.body.userId)
-    if (user == null) { return res.status(404).json({ message: "User not found" }) }
-    if (user.team_id == null) { return res.status(404).json({ message: "User not in any team" }) }
-    if (!user.is_leader) { return res.status(400).json({ message: "User not leader" }) }
-    const team = await toggleTeam(user.team_id, true)
-    res.json({ message: "Team is made public", team: team });
+    
+    const user = await getUser(req.userId!)
+    if (!user) { 
+        throw new AppError("User not found" , 404);
+    }
+    if (!user.team) { 
+        throw new AppError("User not in any team" , 404);
+    }
+    if (!user.is_leader) { 
+        throw new AppError("User not leader" , 400);
+    }
+
+    const team = await toggleTeam(user.team.id, true)
+    res.status(200).json({ message: "Team is made public", team: team });
 }
 
 export const exitTeam = async (req: AuthorizedRequest, res: TypedResponse<{ message: string }>, next: NextFunction) => {
-    if (typeof req.userId !== 'string') { return res.status(400).json({ message: "Invalid parameters" }) }
-    const user = await getUser(req.userId)
-    if (user == null) { return res.status(404).json({ message: "User not found" }) }
-    if (user.team_id == null) { return res.status(404).json({ message: "User not in any team" }) }
-    const teamId = user.team_id
+    const user = await getUser(req.userId!)
+    if (!user) { 
+        throw new AppError("User not found" , 404); 
+    }
+    if (!user.team) { 
+        throw new AppError("User not in any team" , 404); 
+    }
+    const team = user.team
     if (user.is_leader) {
         removeUserFromTeam(user.id)
         updateUserTeam(user.id, null, null)
-        const oldestUser = await getOldestMember(teamId)
-        if (oldestUser) { updateUserTeam(oldestUser, true, teamId) }
+        const oldestUser = await getOldestMember(team.id)
+        if (oldestUser) { updateUserTeam(oldestUser, true, team.id) }
     } else {
         removeUserFromTeam(user.id)
         updateUserTeam(user.id, null, null)

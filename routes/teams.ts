@@ -11,5 +11,6 @@ teamRoutes.post("/create" , $(makeTeam));
 teamRoutes.post("/join" , $(joinTeam));
 teamRoutes.delete("/leave" , $(exitTeam));
 teamRoutes.patch("/makePublic" , $(makePublic));
+teamRoutes.patch("/exit" , $(exitTeam));
 
 export default teamRoutes;

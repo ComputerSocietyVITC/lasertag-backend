@@ -11,6 +11,22 @@ SET client_min_messages = warning;
 SET row_security = off;
 
 --
+-- Name: auto_delete_empty_team(); Type: FUNCTION; Schema: public; Owner: -
+--
+
+CREATE FUNCTION public.auto_delete_empty_team() RETURNS trigger
+    LANGUAGE plpgsql
+    AS $$
+BEGIN
+  IF NOT EXISTS (SELECT 1 FROM team_members WHERE team_id = OLD.team_id) THEN
+    DELETE FROM teams WHERE id = OLD.team_id;
+  END IF;
+  RETURN OLD;
+END;
+$$;
+
+
+--
 -- Name: enforce_team_size(); Type: FUNCTION; Schema: public; Owner: -
 --
 
@@ -240,10 +256,25 @@ ALTER TABLE ONLY public.users
 
 
 --
+-- Name: team_members ux_team_members_user_id; Type: CONSTRAINT; Schema: public; Owner: -
+--
+
+ALTER TABLE ONLY public.team_members
+    ADD CONSTRAINT ux_team_members_user_id UNIQUE (user_id);
+
+
+--
 -- Name: ux_slot_time; Type: INDEX; Schema: public; Owner: -
 --
 
 CREATE UNIQUE INDEX ux_slot_time ON public.slots USING btree (start_time, end_time);
+
+
+--
+-- Name: team_members trg_auto_delete_empty_team; Type: TRIGGER; Schema: public; Owner: -
+--
+
+CREATE TRIGGER trg_auto_delete_empty_team AFTER DELETE ON public.team_members FOR EACH ROW EXECUTE FUNCTION public.auto_delete_empty_team();
 
 
 --
@@ -298,4 +329,6 @@ INSERT INTO public.schema_migrations (version) VALUES
     ('20251024165007'),
     ('20251024165046'),
     ('20251024165055'),
-    ('20251024172707');
+    ('20251024172707'),
+    ('20251025140326'),
+    ('20251025142838');

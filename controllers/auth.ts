@@ -1,26 +1,28 @@
 import type {NextFunction, Request, Response} from "express";
 import bcrypt from "bcryptjs";
 import jwt from "jsonwebtoken";
-import logger from "../utils/logger";
 import {getUserByEmail} from "../models/user";
 import {AppError} from "../types/error";
 
 export const Login = async (req: Request, res: Response, next: NextFunction) => {
-  try {
+    if (!req.body) {
+      throw new AppError("Request body is required", 400);
+    }
+    
     const {email, password} = req.body;
 
     if (!email || !password) {
-      return res.status(400).json({success: false, message: "Email and password are required"});
+      throw new AppError("Email and password are required", 400);
     }
 
     const user = await getUserByEmail(email);
     if (!user) {
-      return res.status(401).json({success: false, message: "Invalid email or password"});
+      throw new AppError("Invalid email or password", 401);
     }
 
     const isMatch = await bcrypt.compare(password, user.password_hash);
     if (!isMatch) {
-      return res.status(401).json({success: false, message: "Invalid email or password"});
+      throw new AppError("Invalid email or password", 401);
     }
 
     const token = jwt.sign(
@@ -31,7 +33,7 @@ export const Login = async (req: Request, res: Response, next: NextFunction) => 
         is_leader: user.is_leader,
       },
       process.env.SECRET_KEY as string,
-      {expiresIn: "1h"}
+      {expiresIn: "12h"}
     );
 
     res.status(200).json({
@@ -47,9 +49,4 @@ export const Login = async (req: Request, res: Response, next: NextFunction) => 
         created_at: user.created_at,
       },
     });
-
-  } catch (error) {
-    logger.error("Login error:", error);
-    next(new AppError("Internal Server Error", 500));
-  }
 };
