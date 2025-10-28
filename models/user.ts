@@ -100,3 +100,13 @@ export async function updateUserTeam(
     );
     return rows[0] as User;
 }
+
+export async function getUsersWithoutTeam(): Promise<Array<{ user_id: number; username: string }>> {
+    const { rows } = await dbPool.query(
+        `SELECT id as user_id, username 
+         FROM users 
+         WHERE team_id IS NULL
+         ORDER BY created_at ASC`
+    );
+    return rows;
+}

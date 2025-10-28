@@ -29,3 +29,32 @@ export const verifyJWT = $(async (req : AuthorizedRequest, res : Response, next 
         next();
     });
 });
+
+
+export const verifyAdmin = $(async (req : AuthorizedRequest, res : Response, next : NextFunction) => {
+    const token = req.headers['authorization']?.split(' ')[1];
+    
+    if (!token) {
+        throw new AppError('No token provided', 401);
+    }
+
+    const secretKey = process.env.SECRET_KEY;
+
+    if(!secretKey) {
+        logger.error("SECRET_KEY is not defined in environment variables");
+        throw new AppError('Internal server error', 500);
+    }
+
+    jwt.verify(token, secretKey, (err, decoded : any) => {
+        if (err) {
+            return next(new AppError('Failed to authenticate token', 401));
+        }
+        
+        if (!decoded.isAdmin || decoded.isAdmin !== true) {
+            return next(new AppError('Admin privileges required', 403));
+        }
+        
+        req.userId = decoded.id;
+        next();
+    });
+});

@@ -49,6 +49,40 @@ SET default_tablespace = '';
 SET default_table_access_method = heap;
 
 --
+-- Name: admins; Type: TABLE; Schema: public; Owner: -
+--
+
+CREATE TABLE public.admins (
+    id integer NOT NULL,
+    username character varying(100) NOT NULL,
+    password_hash character varying(255) NOT NULL,
+    email character varying(100),
+    created_at timestamp without time zone DEFAULT CURRENT_TIMESTAMP,
+    updated_at timestamp without time zone DEFAULT CURRENT_TIMESTAMP
+);
+
+
+--
+-- Name: admins_id_seq; Type: SEQUENCE; Schema: public; Owner: -
+--
+
+CREATE SEQUENCE public.admins_id_seq
+    AS integer
+    START WITH 1
+    INCREMENT BY 1
+    NO MINVALUE
+    NO MAXVALUE
+    CACHE 1;
+
+
+--
+-- Name: admins_id_seq; Type: SEQUENCE OWNED BY; Schema: public; Owner: -
+--
+
+ALTER SEQUENCE public.admins_id_seq OWNED BY public.admins.id;
+
+
+--
 -- Name: schema_migrations; Type: TABLE; Schema: public; Owner: -
 --
 
@@ -171,6 +205,13 @@ ALTER SEQUENCE public.users_id_seq OWNED BY public.users.id;
 
 
 --
+-- Name: admins id; Type: DEFAULT; Schema: public; Owner: -
+--
+
+ALTER TABLE ONLY public.admins ALTER COLUMN id SET DEFAULT nextval('public.admins_id_seq'::regclass);
+
+
+--
 -- Name: slots id; Type: DEFAULT; Schema: public; Owner: -
 --
 
@@ -189,6 +230,30 @@ ALTER TABLE ONLY public.teams ALTER COLUMN id SET DEFAULT nextval('public.teams_
 --
 
 ALTER TABLE ONLY public.users ALTER COLUMN id SET DEFAULT nextval('public.users_id_seq'::regclass);
+
+
+--
+-- Name: admins admins_email_key; Type: CONSTRAINT; Schema: public; Owner: -
+--
+
+ALTER TABLE ONLY public.admins
+    ADD CONSTRAINT admins_email_key UNIQUE (email);
+
+
+--
+-- Name: admins admins_pkey; Type: CONSTRAINT; Schema: public; Owner: -
+--
+
+ALTER TABLE ONLY public.admins
+    ADD CONSTRAINT admins_pkey PRIMARY KEY (id);
+
+
+--
+-- Name: admins admins_username_key; Type: CONSTRAINT; Schema: public; Owner: -
+--
+
+ALTER TABLE ONLY public.admins
+    ADD CONSTRAINT admins_username_key UNIQUE (username);
 
 
 --
@@ -264,6 +329,13 @@ ALTER TABLE ONLY public.team_members
 
 
 --
+-- Name: idx_admins_username; Type: INDEX; Schema: public; Owner: -
+--
+
+CREATE INDEX idx_admins_username ON public.admins USING btree (username);
+
+
+--
 -- Name: ux_slot_time; Type: INDEX; Schema: public; Owner: -
 --
 
@@ -331,4 +403,5 @@ INSERT INTO public.schema_migrations (version) VALUES
     ('20251024165055'),
     ('20251024172707'),
     ('20251025140326'),
-    ('20251025142838');
+    ('20251025142838'),
+    ('20251028172920');
