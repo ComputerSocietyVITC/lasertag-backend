@@ -1,24 +1,25 @@
 import type { NextFunction, Response } from "express";
-import type { AuthorizedRequest } from "../types";
-import { assignTeam, getUser } from "../models/user";
+import type { AuthorizedRequest, TypedAuthorizedRequest, TypedResponse } from "../types";
+import { assignTeam, getUser, removeUserFromTeam, updateUserTeam } from "../models/user";
 import { AppError } from "../types/error";
-import { createTeam } from "../models/teams";
+import { createTeam, toggleTeam, getTeamByInviteCode, getOldestMember } from "../models/teams";
+import type { MakePublicResponse } from "../types/routes";
 
-export const makeTeam = async (req : AuthorizedRequest, res : Response, next : NextFunction) => {
+export const makeTeam = async (req: AuthorizedRequest, res: Response, next: NextFunction) => {
     const user = await getUser(req.userId!);
 
-    if(user?.team){
-        throw new AppError('User already belongs to a team', 400);
+    if (user?.team_id) {
+        throw new AppError('User already belongs to a team', 409);
     }
 
-    const {name} = req.body;
-    
-    if(!name){
+    const { name } = req.body;
+
+    if (!name) {
         throw new AppError('Team name is required', 400);
     }
 
     const team = await createTeam(name);
-    await assignTeam(req.userId!, team.id , true);
+    await assignTeam(req.userId!, team.id, true);
 
     res.status(201).json({
         status: 'success',
@@ -27,22 +28,82 @@ export const makeTeam = async (req : AuthorizedRequest, res : Response, next : N
         }
     });
 
+};
+
+
+export const joinTeam = async (req: AuthorizedRequest, res: Response, next: NextFunction) => {
+    const { invite_code } = req.body;
+    const userId = req.userId!;
+
+    if (!invite_code || typeof invite_code !== 'string') {
+        throw new AppError('Missing or invalid invite code in request body', 400);
+    }
+
+    const user = await getUser(userId);
+
+    if (!user) {
+        throw new AppError('Authenticated user not found', 404);
+    }
+
+    if (user.team_id) {
+        throw new AppError('User already belongs to a team', 409);
+    }
+
+    const team = await getTeamByInviteCode(invite_code);
+    if (!team) {
+        throw new AppError('Invalid invite code', 404);
+    }
+
+    try {
+        const updatedUser = await assignTeam(userId, team.id, false);
+
+        res.status(200).json({
+            status: 'success',
+            data: {
+                team: team,
+                user: {
+                    ...updatedUser,
+                    team_id: team.id,
+                    is_leader: false
+                }
+            }
+        });
+
+    } catch (error: any) {
+        if (error.message && error.message.includes('maximum 8 members')) {
+            throw new AppError('Team is full (maximum 8 members)', 409);
+        }
+
+        throw error;
+    }
+};
+
+export const makePublic = async (req: AuthorizedRequest, res: TypedResponse<MakePublicResponse>, next: NextFunction) => {
+    if (typeof req.userId !== 'string') { return res.status(400).json({ message: "Invalid parameters" }) }
+    const user = await getUser(req.body.userId)
+    if (user == null) { return res.status(404).json({ message: "User not found" }) }
+    if (user.team_id == null) { return res.status(404).json({ message: "User not in any team" }) }
+    if (!user.is_leader) { return res.status(400).json({ message: "User not leader" }) }
+    const team = await toggleTeam(user.team_id, true)
+    res.json({ message: "Team is made public", team: team });
 }
 
-
-export const joinTeam = async (req : AuthorizedRequest, res : Response, next : NextFunction) => {
-    // TODO : Implement join team logic
-    res.json({ message: "Join team route" });
+export const exitTeam = async (req: AuthorizedRequest, res: TypedResponse<{ message: string }>, next: NextFunction) => {
+    if (typeof req.userId !== 'string') { return res.status(400).json({ message: "Invalid parameters" }) }
+    const user = await getUser(req.userId)
+    if (user == null) { return res.status(404).json({ message: "User not found" }) }
+    if (user.team_id == null) { return res.status(404).json({ message: "User not in any team" }) }
+    const teamId = user.team_id
+    if (user.is_leader) {
+        removeUserFromTeam(user.id)
+        updateUserTeam(user.id, null, null)
+        const oldestUser = await getOldestMember(teamId)
+        if (oldestUser) { updateUserTeam(oldestUser, true, teamId) }
+    } else {
+        removeUserFromTeam(user.id)
+        updateUserTeam(user.id, null, null)
+    }
+    return res.status(200).json({ message: "User removed from team" });
 }
 
-
-export const exitTeam = async (req : AuthorizedRequest, res : Response, next : NextFunction) => {
-    // TODO : Implement exit team logic
-    res.json({ message: "Exit team route" });
-}
-
-export const makePublic = async (req : AuthorizedRequest, res : Response, next : NextFunction) => {
-    // TODO : Implement toggle team leader logic
-    res.json({ message: "Toggle team leader route" });
-}
 

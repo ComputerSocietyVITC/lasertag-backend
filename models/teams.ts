@@ -2,13 +2,13 @@ import dbPool from "../config/db";
 import type { Team } from "../types/team";
 import { generateRandomCode } from "../utils";
 
-export async function createTeam(name: string, inviteCode?:string) : Promise<Team> {
+export async function createTeam(name: string, inviteCode?: string): Promise<Team> {
 
-    if(!inviteCode){
+    if (!inviteCode) {
         inviteCode = generateRandomCode(10);
     }
 
-    const {rows} = await dbPool.query(
+    const { rows } = await dbPool.query(
         `INSERT INTO teams (name, invite_code)
          VALUES ($1, $2)
          RETURNING id, name, invite_code, created_at`,
@@ -17,8 +17,8 @@ export async function createTeam(name: string, inviteCode?:string) : Promise<Tea
     return rows[0];
 }
 
-export async function getTeam(teamId: number) : Promise<Team | null> {
-    const {rows} = await dbPool.query(
+export async function getTeam(teamId: number): Promise<Team | null> {
+    const { rows } = await dbPool.query(
         `SELECT id, name, invite_code, created_at
          FROM teams
          WHERE id = $1`,
@@ -27,8 +27,8 @@ export async function getTeam(teamId: number) : Promise<Team | null> {
     return rows[0] || null;
 }
 
-export async function getTeamByInviteCode(inviteCode: string) : Promise<Team | null> {
-    const {rows} = await dbPool.query(
+export async function getTeamByInviteCode(inviteCode: string): Promise<Team | null> {
+    const { rows } = await dbPool.query(
         `SELECT id, name, invite_code, created_at
          FROM teams
          WHERE invite_code = $1`,
@@ -37,13 +37,40 @@ export async function getTeamByInviteCode(inviteCode: string) : Promise<Team | n
     return rows[0] || null;
 }
 
-export async function toggleTeam(teamId: number) : Promise<Team> {
-    const {rows} = await dbPool.query(
+export async function toggleTeam(teamId: number, isPublic?: boolean): Promise<Team> {
+    if (typeof isPublic === 'boolean') {
+        const { rows } = await dbPool.query(
+            `UPDATE teams
+             SET is_public = $2
+             WHERE id = $1
+             RETURNING id, name, invite_code, is_public, created_at`,
+            [teamId, isPublic]
+        );
+        return rows[0];
+    }
+
+    // toggle current value
+    const { rows } = await dbPool.query(
         `UPDATE teams
-         SET is_public = false
+         SET is_public = NOT is_public
          WHERE id = $1
          RETURNING id, name, invite_code, is_public, created_at`,
         [teamId]
     );
     return rows[0];
+}
+
+export async function getOldestMember(teamId: number): Promise<number | null> {
+    const { rows } = await dbPool.query(
+        `SELECT
+            user_id
+        FROM
+            team_members
+        WHERE
+            team_id=$1
+        ORDER BY
+            joined_at ASC
+        LIMIT 1;`, [teamId]
+    )
+    return rows?.[0]?.[0] ?? null;
 }
