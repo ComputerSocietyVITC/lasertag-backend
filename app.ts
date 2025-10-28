@@ -4,6 +4,7 @@ import userRoutes from "./routes/user";
 import authRoutes from "./routes/auth";
 import teamRoutes from "./routes/teams";
 import adminRoutes from "./routes/admin";
+import slotsRoutes from "./routes/slots";
 
 const app = express();
 app.use(express.json());
@@ -16,6 +17,7 @@ app.use("/api/auth" , authRoutes);
 app.use("/api/teams" , teamRoutes);
 app.use("/api/users" , userRoutes);
 app.use("/api/admin" , adminRoutes);
+app.use("/api/slots" , slotsRoutes);
 
 app.use(notFoundHandler);
 app.use(errorHandler);
