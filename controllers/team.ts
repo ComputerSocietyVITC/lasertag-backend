@@ -204,8 +204,13 @@ export const mergeSwitch = async (req: AuthorizedRequest, res: Response, next: N
 
         const allOrphanMembers: Array<{ user_id: number; username: string; is_leader: boolean }> = [];
         
+        // Add solo users to orphan pool and clean up any stale team_members entries
         for (const soloUser of soloUsers) {
             logger.info(`Adding solo user ${soloUser.user_id} (${soloUser.username}) to matchmaking pool`);
+            
+            // Clean up any stale team_members entries for this user
+            await removeUserFromTeam(soloUser.user_id);
+            
             allOrphanMembers.push({
                 user_id: soloUser.user_id,
                 username: soloUser.username,
@@ -249,21 +254,58 @@ export const mergeSwitch = async (req: AuthorizedRequest, res: Response, next: N
             const currentTeams = await getTeamWithMemberCount();
             
             if (currentTeams.length > 0) {
-                const targetTeam = currentTeams.find(t => parseInt(t.member_count.toString()) < 8) || currentTeams[0];
+                const teamsWithSpace = currentTeams.filter(t => parseInt(t.member_count.toString()) < 8);
                 
-                logger.info(`Adding ${leftoverMembers.length} leftover members to team ${targetTeam.team_id}`);
-                
-                for (const member of leftoverMembers) {
-                    await assignTeam(member.user_id.toString(), targetTeam.team_id, false);
+                if (teamsWithSpace.length > 0) {
+                    let leftoverIndex = 0;
+                    
+                    for (const team of teamsWithSpace) {
+                        if (leftoverIndex >= leftoverMembers.length) break;
+                        
+                        const currentCount = parseInt(team.member_count.toString());
+                        const availableSpace = 8 - currentCount;
+                        const membersToAdd = Math.min(availableSpace, leftoverMembers.length - leftoverIndex);
+                        
+                        logger.info(`Adding ${membersToAdd} members to team ${team.team_id} (current: ${currentCount}, space: ${availableSpace})`);
+                        
+                        for (let i = 0; i < membersToAdd; i++) {
+                            const member = leftoverMembers[leftoverIndex];
+                            await assignTeam(member.user_id.toString(), team.team_id, false);
+                            leftoverHandled++;
+                            leftoverIndex++;
+                        }
+                    }
+                    
+                    if (leftoverIndex < leftoverMembers.length) {
+                        const remainingMembers = leftoverMembers.slice(leftoverIndex);
+                        const userIds = remainingMembers.map(m => m.user_id);
+                        const formerLeader = remainingMembers.find(m => m.is_leader);
+                        const leaderId = formerLeader ? formerLeader.user_id : remainingMembers[0].user_id;
+                        const teamName = `Auto-Team-${Date.now()}-Leftover`;
+                        
+                        logger.info(`Creating new team with ${remainingMembers.length} remaining leftover members`);
+                        await createTeamWithMembers(teamName, userIds, leaderId);
+                        newTeamsCreated++;
+                        leftoverHandled += remainingMembers.length;
+                    }
+                } else {
+                    const userIds = leftoverMembers.map(m => m.user_id);
+                    const formerLeader = leftoverMembers.find(m => m.is_leader);
+                    const leaderId = formerLeader ? formerLeader.user_id : leftoverMembers[0].user_id;
+                    const teamName = `Auto-Team-${Date.now()}-Leftover`;
+                    
+                    logger.info(`Creating new team with ${leftoverMembers.length} leftover members (no teams with space)`);
+                    await createTeamWithMembers(teamName, userIds, leaderId);
+                    newTeamsCreated++;
+                    leftoverHandled = leftoverMembers.length;
                 }
-                leftoverHandled = leftoverMembers.length;
             } else if (leftoverMembers.length > 0) {
                 const userIds = leftoverMembers.map(m => m.user_id);
                 const formerLeader = leftoverMembers.find(m => m.is_leader);
                 const leaderId = formerLeader ? formerLeader.user_id : leftoverMembers[0].user_id;
                 const teamName = `Auto-Team-${Date.now()}-Leftover`;
                 
-                logger.info(`Creating new team with ${leftoverMembers.length} leftover members`);
+                logger.info(`Creating new team with ${leftoverMembers.length} leftover members (no teams exist)`);
                 await createTeamWithMembers(teamName, userIds, leaderId);
                 newTeamsCreated++;
                 leftoverHandled = leftoverMembers.length;
