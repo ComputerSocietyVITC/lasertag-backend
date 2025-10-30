@@ -11,7 +11,9 @@ import {
     getTeamMembers,
     mergeTeams,
     createTeamWithMembers,
-    removeAllMembersFromTeam
+    removeAllMembersFromTeam,
+    getTeamWithMembers,
+    getAllPublicTeams as getAllPublicTeamsModel
 } from "../models/teams";
 import type { MakePublicResponse } from "../types/routes";
 import logger from "../utils/logger";
@@ -342,3 +344,88 @@ export const mergeSwitch = async (req: AuthorizedRequest, res: Response, next: N
 };
 
 
+export const getMyTeam = async (req: AuthorizedRequest, res: Response, next: NextFunction) => {
+    const user = await getUser(req.userId!);
+    
+    if (!user) {
+        throw new AppError("User not found", 404);
+    }
+    
+    if (!user.team) {
+        throw new AppError("User is not part of any team", 404);
+    }
+    
+    const teamWithMembers = await getTeamWithMembers(user.team.id);
+    
+    if (!teamWithMembers) {
+        throw new AppError("Team not found", 404);
+    }
+    
+    res.status(200).json({
+        status: 'success',
+        data: {
+            team: teamWithMembers
+        }
+    });
+}
+
+
+export const getAllPublicTeams = async (req: AuthorizedRequest, res: Response, next: NextFunction) => {
+    const teams = await getAllPublicTeamsModel();
+    
+    res.status(200).json({
+        status: 'success',
+        data: {
+            teams
+        }
+    });
+}
+
+export const kickTeamMember = async (req: AuthorizedRequest, res: Response, next: NextFunction) => {
+    const { userId } = req.body;
+    const leaderId = req.userId!;
+
+    if (!userId) {
+        throw new AppError('User ID is required', 400);
+    }
+
+    const leader = await getUser(leaderId);
+    
+    if (!leader) {
+        throw new AppError("Leader not found", 404);
+    }
+    
+    if (!leader.team) {
+        throw new AppError("Leader is not part of any team", 404);
+    }
+    
+    if (!leader.is_leader) {
+        throw new AppError("Only team leaders can kick members", 403);
+    }
+
+    const userToKick = await getUser(userId.toString());
+    
+    if (!userToKick) {
+        throw new AppError("User to kick not found", 404);
+    }
+    
+    if (!userToKick.team) {
+        throw new AppError("User is not part of any team", 404);
+    }
+    
+    if (userToKick.team.id !== leader.team.id) {
+        throw new AppError("User is not a member of your team", 403);
+    }
+    
+    if (userId.toString() === leaderId) {
+        throw new AppError("You cannot kick yourself. Use the exit team endpoint instead.", 400);
+    }
+    
+    await removeUserFromTeam(userToKick.id);
+    await updateUserTeam(userToKick.id, null, null);
+    
+    res.status(200).json({
+        status: 'success',
+        message: 'User removed from team successfully.'
+    });
+}

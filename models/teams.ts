@@ -223,3 +223,40 @@ export async function removeAllMembersFromTeam(teamId: number): Promise<void> {
         client.release();
     }
 }
+
+export async function getTeamWithMembers(teamId: number): Promise<any> {
+    const { rows } = await dbPool.query(
+        `SELECT 
+            t.id,
+            t.name,
+            t.invite_code,
+            t.is_public,
+            t.created_at,
+            json_agg(
+                json_build_object(
+                    'id', u.id,
+                    'username', u.username,
+                    'email', u.email,
+                    'phone_no', u.phone_no,
+                    'is_leader', u.is_leader
+                ) ORDER BY u.is_leader DESC, tm.joined_at ASC
+            ) as members
+         FROM teams t
+         LEFT JOIN team_members tm ON t.id = tm.team_id
+         LEFT JOIN users u ON tm.user_id = u.id
+         WHERE t.id = $1
+         GROUP BY t.id, t.name, t.invite_code, t.is_public, t.created_at`,
+        [teamId]
+    );
+    return rows[0] || null;
+}
+
+export async function getAllPublicTeams(): Promise<Team[]> {
+    const { rows } = await dbPool.query(
+        `SELECT id, name, invite_code, is_public, created_at
+         FROM teams
+         WHERE is_public = true
+         ORDER BY created_at DESC`
+    );
+    return rows;
+}
